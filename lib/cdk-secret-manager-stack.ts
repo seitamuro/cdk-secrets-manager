@@ -1,15 +1,15 @@
-import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import * as aws_lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as cdk from "aws-cdk-lib";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as aws_lambda_nodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import { Construct } from "constructs";
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 export class CdkSecretManagerStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    new secretsmanager.Secret(this, "Secret", {
+    const secrets = new secretsmanager.Secret(this, "Secret", {
       secretObjectValue: {
         secret1: cdk.SecretValue.unsafePlainText("this_is_secret1"),
         secret2: cdk.SecretValue.unsafePlainText("this_is_secret2"),
@@ -18,20 +18,29 @@ export class CdkSecretManagerStack extends cdk.Stack {
       secretName: "my-secret",
       description: "This is my secret",
       encryptionKey: undefined,
-      replicaRegions: undefined
-    })
-
-    const lambda_function = new aws_lambda_nodejs.NodejsFunction(this, "ShowSecretFunction", {
-      entry: "lambda/show_secrets.ts",
-      handler: "handler"
+      replicaRegions: undefined,
     });
 
+    const lambda_function = new aws_lambda_nodejs.NodejsFunction(
+      this,
+      "ShowSecretFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        entry: "lambda/show_secrets.ts",
+        handler: "handler",
+        environment: {
+          SECRETS_NAME: secrets.secretName,
+        },
+      }
+    );
+    secrets.grantRead(lambda_function);
+
     const lambda_function_url = lambda_function.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE
+      authType: lambda.FunctionUrlAuthType.NONE,
     });
 
     new cdk.CfnOutput(this, "FunctionURL", {
-      value: lambda_function_url.url
-    })
+      value: lambda_function_url.url,
+    });
   }
 }
