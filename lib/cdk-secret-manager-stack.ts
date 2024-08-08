@@ -21,26 +21,55 @@ export class CdkSecretManagerStack extends cdk.Stack {
       replicaRegions: undefined,
     });
 
-    const lambda_function = new aws_lambda_nodejs.NodejsFunction(
+    const nodejs_lambda_function = new aws_lambda_nodejs.NodejsFunction(
       this,
       "ShowSecretFunction",
       {
         runtime: lambda.Runtime.NODEJS_20_X,
-        entry: "lambda/show_secrets.ts",
+        entry: "lambda/node/show_secrets.ts",
         handler: "handler",
         environment: {
           SECRETS_NAME: secrets.secretName,
         },
       }
     );
-    secrets.grantRead(lambda_function);
+    secrets.grantRead(nodejs_lambda_function);
 
-    const lambda_function_url = lambda_function.addFunctionUrl({
+    const python_lambda_function = new lambda.Function(
+      this,
+      "ShowSecretFunctionPython",
+      {
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "show_secrets.lambda_handler",
+        code: lambda.Code.fromAsset("lambda/python", {
+          bundling: {
+            image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+            command: [
+              "bash",
+              "-c",
+              "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
+            ],
+          },
+        }),
+        environment: {
+          SECRETS_NAME: secrets.secretName,
+        },
+      }
+    );
+    secrets.grantRead(python_lambda_function);
+
+    const nodejs_lambda_function_url = nodejs_lambda_function.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.NONE,
+    });
+    const python_lambda_function_url = python_lambda_function.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
     });
 
-    new cdk.CfnOutput(this, "FunctionURL", {
-      value: lambda_function_url.url,
+    new cdk.CfnOutput(this, "NodeFunctionURL", {
+      value: nodejs_lambda_function_url.url,
+    });
+    new cdk.CfnOutput(this, "PythonFunctionURL", {
+      value: python_lambda_function_url.url,
     });
   }
 }
